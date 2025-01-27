@@ -58,6 +58,7 @@ contract Escrow with Deployable {
     jettonWalletCode: Cell?;
     const GUARANTOR_PERCENT_CONST: Int = 100000;
     const GUARANTOR_PERCENT_MAX: Int = 90000;
+    const JETTON_TRANSFER_GAS: Int = ton("0.05");
     init(id: Int,
         sellerAddress: Address,
         guarantorAddress: Address,
@@ -83,7 +84,7 @@ contract Escrow with Deployable {
         );
         send(SendParameters{
                 to: escrowJettonWalletAddress,
-                value: ton("0.05"),
+                value: self.JETTON_TRANSFER_GAS,
                 body: JettonTransfer{
                     queryId: 0,
                     amount: amount,
@@ -127,10 +128,30 @@ contract Escrow with Deployable {
         self.buyerAddress = msg.sender;
     }
 
+    // send funds to seller and royalty to guarantor
     receive("approve"){
         require(self.isFunded == true, "not funded");
         require(self.guarantorAddress == context().sender, "not guarantor");
-        if (self.assetAddress == null) {} else {}
+
+        let royaltyAmount: Int = self.calculateRoyaltyAmount();
+        if (self.assetAddress == null) {
+            send(SendParameters{
+                    to: self.sellerAddress,
+                    value: self.dealAmount - royaltyAmount,
+                    mode: SendPayGasSeparately
+                }
+            );
+            send(SendParameters{
+                    to: self.guarantorAddress,
+                    value: royaltyAmount,
+                    mode: SendRemainingBalance | SendDestroyIfZero // send all remaining and destroy escrow
+                }
+            );
+        } else {
+            require(context().value > (2 * self.JETTON_TRANSFER_GAS), "low msg value");
+            self.sendJettons(self.sellerAddress, self.dealAmount - royaltyAmount, SendPayGasSeparately);
+            self.sendJettons(self.guarantorAddress, royaltyAmount, SendRemainingBalance | SendDestroyIfZero);
+        }
     }
 
     // send funds back to buyer
