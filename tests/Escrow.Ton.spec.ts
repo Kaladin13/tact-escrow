@@ -522,15 +522,15 @@ describe('Escrow Ton Tests', () => {
             to: buyer.address,
             success: true,
             body: (b) => {
-                const ds = b!.beginParse();
+                let ds = b!.beginParse();
+                expect(ds.loadUintBig(32)).toEqual(0x2c394a7en); // TakeEscrowData#2c394a7e
 
-                expect(ds.loadUintBig(32)).toEqual(0x929ec6a5n); // TakeEscrowData#929ec6a5
-
+                ds = ds.loadRef().beginParse();
                 expect(ds.loadUintBig(32)).toEqual(escrowData.id);
                 expect(ds.loadAddress()).toEqualAddress(escrowData.sellerAddress);
                 expect(ds.loadAddress()).toEqualAddress(escrowData.guarantorAddress);
                 expect(ds.loadCoins()).toEqual(escrowData.dealAmount);
-                expect(ds.loadUintBig(8)).toEqual(escrowData.guarantorRoyaltyPercent);
+                expect(ds.loadUintBig(32)).toEqual(escrowData.guarantorRoyaltyPercent);
                 expect(ds.loadBoolean()).toEqual(escrowData.isFunded);
 
                 const assetAddress = ds.loadMaybeAddress();

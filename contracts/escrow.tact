@@ -42,7 +42,7 @@ struct EscrowData {
     sellerAddress: Address;
     guarantorAddress: Address;
     dealAmount: Int as coins;
-    guarantorRoyaltyPercent: Int as uint8; // 3 decimal points, see GUARANTOR_PERCENT_CONST
+    guarantorRoyaltyPercent: Int as uint32; // 3 decimal points, see GUARANTOR_PERCENT_CONST
     isFunded: Bool;
     assetAddress: Address?; // null for TON
     jettonWalletCode: Cell?;
@@ -55,7 +55,7 @@ contract Escrow with Deployable {
     guarantorAddress: Address;
     buyerAddress: Address?;
     dealAmount: Int as coins;
-    guarantorRoyaltyPercent: Int as uint8;
+    guarantorRoyaltyPercent: Int as uint32;
     isFunded: Bool;
     assetAddress: Address?;
     jettonWalletCode: Cell?;
