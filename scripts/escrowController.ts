@@ -26,6 +26,12 @@ const getStatusDeal = async (provider: NetworkProvider, ui: UIProvider) => {
     ui.write(`Current deal status is ${!status.isFunded ? 'INITIALIZED' : 'FUNDED'}`);
 };
 
+const getWalletAddress = async (provider: NetworkProvider, ui: UIProvider) => {
+    const jAddress = await escrowContract.getWalletAddress();
+
+    ui.write(`Escrow contract jetton wallet address is ${jAddress.toString({ urlSafe: true })}`);
+};
+
 const getRoyalty = async (provider: NetworkProvider, ui: UIProvider) => {
     const roylaty = await escrowContract.getCalculateRoyaltyAmount();
 
@@ -191,7 +197,7 @@ const approveDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
     await escrowContract.send(
         provider.sender(),
         {
-            value: toNano('0.05'),
+            value: toNano('0.11'),
         },
         'approve',
     );
@@ -205,6 +211,7 @@ const approveDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
 
             if (contractState.state.type === 'uninit') {
                 ui.write(`Approved deal successfully!`);
+                process.exit(0);
             } else {
                 ui.write(`Couldn't approve the deal...`);
             }
@@ -213,6 +220,7 @@ const approveDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
         }
     } catch (e) {
         ui.write(`Approved deal successfully!`);
+        process.exit(0);
     }
 };
 
@@ -232,7 +240,7 @@ const cancelDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
     await escrowContract.send(
         provider.sender(),
         {
-            value: toNano('0.05'),
+            value: toNano('0.11'),
         },
         'cancel',
     );
@@ -245,6 +253,7 @@ const cancelDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
 
             if (contractState.state.type === 'uninit') {
                 ui.write(`Cancelled deal successfully!`);
+                process.exit(0);
             } else {
                 ui.write(`Couldn't cancel the deal...`);
             }
@@ -253,6 +262,7 @@ const cancelDealAction = async (provider: NetworkProvider, ui: UIProvider) => {
         }
     } catch (e) {
         ui.write(`Cancelled deal successfully!`);
+        process.exit(0);
     }
 };
 
@@ -262,7 +272,6 @@ export async function run(provider: NetworkProvider) {
     const hasSender = sender.address !== undefined;
     const api = provider.api();
 
-    const escrowCode = await compile('Escrow');
     let done = false;
     let retry: boolean;
     let escrowAddress: Address;

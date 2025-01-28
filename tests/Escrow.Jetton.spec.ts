@@ -147,6 +147,29 @@ describe('Escrow Jetton Tests', () => {
         expect(data.isFunded).toBeTruthy();
     });
 
+    it('should calculate jetton wallet address correctly', async () => {
+        const dealAmount = toNano(5); // 5 jetton
+
+        const escrowContract = await generateEscrowContract(jettonMinter.address, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const escrowJettonWallet = await userWallet(escrowContract.address);
+
+        const jWaddress = await escrowContract.getWalletAddress();
+
+        expect(jWaddress).toEqualAddress(escrowJettonWallet.address);
+    });
+
     it('should reject incorrect jetton amount', async () => {
         const dealAmount = toNano(5); // 5 jetton
 
@@ -347,6 +370,66 @@ describe('Escrow Jetton Tests', () => {
         const data = await escrowContract.getEscrowInfo();
 
         expect(data.jettonWalletCode).toEqualCell(newJwalletCode);
+    });
+
+    it('should calculate jetton wallet address after jetton code change', async () => {
+        const dealAmount = toNano(5); // 5 jetton
+
+        const escrowContract = blockchain.openContract(
+            await Escrow.fromInit(
+                lastCtxId++,
+                seller.address,
+                guarantor.address,
+                dealAmount,
+                1n,
+                jettonMinter.address,
+                beginCell().storeAddress(seller.address).endCell(), // fake initial cell
+            ),
+        );
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const dataBefore = await escrowContract.getEscrowInfo();
+
+        expect(dataBefore.jettonWalletCode).toEqualCell(beginCell().storeAddress(seller.address).endCell());
+
+        const newJwalletCode = jwalletCode;
+
+        const updateResult = await escrowContract.send(
+            seller.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'UpdateJettonWalletCode',
+                newJettonWalletCode: newJwalletCode,
+            },
+        );
+
+        expect(updateResult.transactions).toHaveTransaction({
+            from: seller.address,
+            to: escrowContract.address,
+            success: true,
+        });
+
+        const data = await escrowContract.getEscrowInfo();
+
+        expect(data.jettonWalletCode).toEqualCell(newJwalletCode);
+
+        const escrowJettonWallet = await userWallet(escrowContract.address);
+
+        const jWaddress = await escrowContract.getWalletAddress();
+
+        expect(jWaddress).toEqualAddress(escrowJettonWallet.address);
     });
 
     // we prohibit this logic because malicious seller can update jetton wallet code after funding

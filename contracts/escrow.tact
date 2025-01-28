@@ -191,6 +191,10 @@ contract Escrow with Deployable {
         return (self.dealAmount * percent) / self.GUARANTOR_PERCENT_CONST;
     }
 
+    get fun walletAddress(): Address {
+        return calculateJettonWalletAddress(myAddress(), self.assetAddress!!, self.jettonWalletCode!!);
+    }
+
     get fun escrowInfo(): EscrowData {
         return
             EscrowData{
