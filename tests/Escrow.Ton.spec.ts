@@ -352,6 +352,126 @@ describe('Escrow Ton Tests', () => {
         });
     });
 
+    it('should limit max royalty at the threshold', async () => {
+        const dealAmount = toNano(5); // 5 ton
+
+        // 105% royalty
+        const escrowContract = await generateEscrowContract(null, dealAmount, 105000n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const guarantorRoyalty = await escrowContract.getCalculateRoyaltyAmount();
+
+        // 90% is the max royalty
+        expect(guarantorRoyalty).toBe(toNano(4.5)); // 4.5 ton, 5 * 90%
+    });
+
+    it('should allow guarantor to approve the deal with ton', async () => {
+        const dealAmount = toNano(1); // 1 ton
+
+        const escrowContract = await generateEscrowContract(null, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const guaratorRoyalty = await escrowContract.getCalculateRoyaltyAmount();
+
+        await escrowContract.send(
+            buyer.getSender(),
+            {
+                value: dealAmount,
+            },
+            'funding',
+        );
+
+        const approveResult = await escrowContract.send(
+            guarantor.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            'approve',
+        );
+
+        expect(approveResult.transactions).toHaveTransaction({
+            from: guarantor.address,
+            to: escrowContract.address,
+            success: true,
+            outMessagesCount: 2,
+            endStatus: 'non-existing', // escrow should be destroyed after cancel
+        });
+
+        expect(approveResult.transactions).toHaveTransaction({
+            from: escrowContract.address,
+            to: seller.address,
+            value: dealAmount - guaratorRoyalty,
+            success: true,
+        });
+
+        expect(approveResult.transactions).toHaveTransaction({
+            from: escrowContract.address,
+            to: guarantor.address,
+            value: (v) => v! >= guaratorRoyalty && v! <= guaratorRoyalty + toNano(1), // in-between check cause 128+32 send mode
+            success: true,
+        });
+    });
+
+    it('should reject approve with low msg value', async () => {
+        const dealAmount = toNano(1); // 1 ton
+
+        const escrowContract = await generateEscrowContract(null, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        await escrowContract.send(
+            buyer.getSender(),
+            {
+                value: dealAmount,
+            },
+            'funding',
+        );
+
+        const approveResult = await escrowContract.send(
+            guarantor.getSender(),
+            {
+                value: toNano('0.01'), // low value
+            },
+            'approve',
+        );
+
+        expect(approveResult.transactions).toHaveTransaction({
+            from: guarantor.address,
+            to: escrowContract.address,
+            success: false,
+            exitCode: 5357, // low msg value
+        });
+    });
+
     it('should allow guarantor to cancel the deal with ton', async () => {
         const dealAmount = toNano(1); // 1 ton
 

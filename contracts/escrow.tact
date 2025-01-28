@@ -1,6 +1,6 @@
 import "@stdlib/deploy";
 // =====================================
-// TEP-74: Standard Jettom messages
+// TEP-74: Standard Jetton messages
 //
 // https://github.com/ton-blockchain/TEPs/blob/master/text/0074-jettons-standard.md
 // =====================================
@@ -59,6 +59,7 @@ contract Escrow with Deployable {
     const GUARANTOR_PERCENT_CONST: Int = 100000;
     const GUARANTOR_PERCENT_MAX: Int = 90000;
     const JETTON_TRANSFER_GAS: Int = ton("0.05");
+    const TON_TRANSFER_GAS: Int = ton("0.015");
     init(id: Int,
         sellerAddress: Address,
         guarantorAddress: Address,
@@ -132,9 +133,9 @@ contract Escrow with Deployable {
     receive("approve"){
         require(self.isFunded == true, "not funded");
         require(self.guarantorAddress == context().sender, "not guarantor");
-
         let royaltyAmount: Int = self.calculateRoyaltyAmount();
         if (self.assetAddress == null) {
+            require(context().value > (2 * self.TON_TRANSFER_GAS), "low msg value");
             send(SendParameters{
                     to: self.sellerAddress,
                     value: self.dealAmount - royaltyAmount,
@@ -173,6 +174,8 @@ contract Escrow with Deployable {
     }
 
     get fun calculateRoyaltyAmount(): Int {
+        // using integer math to avoid floating point issues
+        // see https://tact-by-example.org/04-decimal-point
         let percent: Int = self.guarantorRoyaltyPercent;
         if (percent >= self.GUARANTOR_PERCENT_MAX) {
             percent = self.GUARANTOR_PERCENT_MAX;
