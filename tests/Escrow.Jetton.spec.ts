@@ -1,4 +1,4 @@
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
+import { Blockchain, printTransactionFees, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import { Address, beginCell, Cell, SendMode, toNano } from '@ton/core';
 import { Escrow } from '../wrappers/Escrow';
 import '@ton/test-utils';
@@ -309,7 +309,7 @@ describe('Escrow Jetton Tests', () => {
         expect(data.isFunded).toBeFalsy();
     });
 
-    it('should correctly updade jetton wallet code', async () => {
+    it('should correctly update jetton wallet code', async () => {
         const dealAmount = toNano(5); // 5 jetton
 
         const escrowContract = await generateEscrowContract(jettonMinter.address, dealAmount, 1n);
@@ -430,7 +430,7 @@ describe('Escrow Jetton Tests', () => {
             null as unknown as Cell,
         );
 
-        const guaratorRoyalty = await escrowContract.getCalculateRoyaltyAmount();
+        const guarantorRoyalty = await escrowContract.getCalculateRoyaltyAmount();
 
         const sellerJettonWallet = await userWallet(seller.address);
         const guarantorJettonWallet = await userWallet(guarantor.address);
@@ -467,11 +467,68 @@ describe('Escrow Jetton Tests', () => {
             success: true,
         });
 
-        expect(sellerJettonBalanceBefore).toEqual(sellerJettonBalanceAfter - (dealAmount - guaratorRoyalty));
-        expect(guarantorJettonBalanceBefore).toEqual(guarantorJettonBalanceAfter - guaratorRoyalty);
+        expect(sellerJettonBalanceBefore).toEqual(sellerJettonBalanceAfter - (dealAmount - guarantorRoyalty));
+        expect(guarantorJettonBalanceBefore).toEqual(guarantorJettonBalanceAfter - guarantorRoyalty);
     });
 
-    // this test checks atomicity of the approve action with 2 jetton transfers
+    it('should keep fees with jetton under threshold', async () => {
+        const dealAmount = toNano(5); // 5 jetton
+
+        const escrowContract = await generateEscrowContract(jettonMinter.address, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.1'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const buyerJettonWallet = await userWallet(buyer.address);
+
+        await buyerJettonWallet.sendTransfer(
+            buyer.getSender(),
+            toNano('0.1'),
+            dealAmount,
+            escrowContract.address,
+            buyer.address,
+            null as unknown as Cell,
+            toNano('0.05'),
+            null as unknown as Cell,
+        );
+
+        const approveResult = await escrowContract.send(
+            guarantor.getSender(),
+            {
+                value: toNano('0.11'),
+            },
+            'approve',
+        );
+
+        printTransactionFees(approveResult.transactions);
+
+        for (const tx of approveResult.transactions) {
+            const receiverHandledTx = tx;
+
+            expect(receiverHandledTx.description.type).toEqual('generic');
+
+            if (receiverHandledTx.description.type !== 'generic') {
+                throw new Error('Generic transaction expected');
+            }
+            const computeFee =
+                receiverHandledTx.description.computePhase.type === 'vm'
+                    ? receiverHandledTx.description.computePhase.gasFees
+                    : undefined;
+            const actionFee = receiverHandledTx.description.actionPhase?.totalActionFees;
+
+            expect((computeFee ?? 0n) + (actionFee ?? 0n)).toBeLessThanOrEqual(toNano('0.08'));
+        }
+    });
+
+    // this test checks atomicity of the approval action with 2 jetton transfers
     it('should reject approve with low msg value', async () => {
         const dealAmount = toNano(5); // 5 jetton
 

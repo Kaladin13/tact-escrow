@@ -1,4 +1,4 @@
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
+import { Blockchain, printTransactionFees, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import { Address, beginCell, Cell, SendMode, toNano } from '@ton/core';
 import { Escrow } from '../wrappers/Escrow';
 import '@ton/test-utils';
@@ -429,6 +429,126 @@ describe('Escrow Ton Tests', () => {
             to: guarantor.address,
             value: (v) => v! >= guaratorRoyalty && v! <= guaratorRoyalty + toNano(1), // in-between check cause 128+32 send mode
             success: true,
+        });
+    });
+
+    it('should keep total fees under threshold', async () => {
+        const dealAmount = toNano(1); // 1 ton
+
+        const escrowContract = await generateEscrowContract(null, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        await escrowContract.send(
+            buyer.getSender(),
+            {
+                value: dealAmount,
+            },
+            'funding',
+        );
+
+        const approveResult = await escrowContract.send(
+            guarantor.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            'approve',
+        );
+
+        printTransactionFees(approveResult.transactions);
+
+        for (const tx of approveResult.transactions) {
+            const receiverHandledTx = tx;
+
+            expect(receiverHandledTx.description.type).toEqual('generic');
+
+            if (receiverHandledTx.description.type !== 'generic') {
+                throw new Error('Generic transaction expected');
+            }
+            const computeFee =
+                receiverHandledTx.description.computePhase.type === 'vm'
+                    ? receiverHandledTx.description.computePhase.gasFees
+                    : undefined;
+            const actionFee = receiverHandledTx.description.actionPhase?.totalActionFees;
+
+            expect((computeFee ?? 0n) + (actionFee ?? 0n)).toBeLessThanOrEqual(toNano('0.08'));
+        }
+    });
+
+    it('should provide escrow data on-chain', async () => {
+        const dealAmount = toNano(1); // 1 ton
+
+        const escrowContract = await generateEscrowContract(null, dealAmount, 1n);
+
+        await escrowContract.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            },
+        );
+
+        const escrowData = await escrowContract.getEscrowInfo();
+
+        const providedDataResult = await escrowContract.send(
+            buyer.getSender(),
+            {
+                value: dealAmount,
+            },
+            'provideEscrowData',
+        );
+
+        expect(providedDataResult.transactions).toHaveTransaction({
+            from: buyer.address,
+            to: escrowContract.address,
+            success: true,
+            outMessagesCount: 1,
+        });
+
+        expect(providedDataResult.transactions).toHaveTransaction({
+            from: escrowContract.address,
+            to: buyer.address,
+            success: true,
+            body: (b) => {
+                const ds = b!.beginParse();
+
+                expect(ds.loadUintBig(32)).toEqual(0x929ec6a5n); // TakeEscrowData#929ec6a5
+
+                expect(ds.loadUintBig(32)).toEqual(escrowData.id);
+                expect(ds.loadAddress()).toEqualAddress(escrowData.sellerAddress);
+                expect(ds.loadAddress()).toEqualAddress(escrowData.guarantorAddress);
+                expect(ds.loadCoins()).toEqual(escrowData.dealAmount);
+                expect(ds.loadUintBig(8)).toEqual(escrowData.guarantorRoyaltyPercent);
+                expect(ds.loadBoolean()).toEqual(escrowData.isFunded);
+
+                const assetAddress = ds.loadMaybeAddress();
+                if (assetAddress) {
+                    expect(assetAddress).toEqualAddress(escrowData.assetAddress!);
+                } else {
+                    expect(escrowData.assetAddress).toBeNull();
+                }
+
+                const jettonWalletCode = ds.loadMaybeRef();
+                if (jettonWalletCode) {
+                    expect(jettonWalletCode).toEqualCell(escrowData.jettonWalletCode!);
+                } else {
+                    expect(escrowData.jettonWalletCode).toBeNull();
+                }
+
+                return true;
+            },
         });
     });
 

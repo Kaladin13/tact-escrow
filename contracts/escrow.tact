@@ -34,16 +34,19 @@ fun calculateJettonWalletAddress(ownerAddress: Address, jettonMasterAddress: Add
 message UpdateJettonWalletCode {
     newJettonWalletCode: Cell;
 }
+message TakeEscrowData {
+    escrowData: EscrowData;
+}
 struct EscrowData {
-    id: Int as uint32;
+    id: Int as uint32; // contract address salt
     sellerAddress: Address;
     guarantorAddress: Address;
     dealAmount: Int as coins;
-    guarantorRoyaltyPercent: Int as uint8;
+    guarantorRoyaltyPercent: Int as uint8; // 3 decimal points, see GUARANTOR_PERCENT_CONST
     isFunded: Bool;
-    assetAddress: Address?;
+    assetAddress: Address?; // null for TON
     jettonWalletCode: Cell?;
-    buyerAddress: Address?;
+    buyerAddress: Address?; // null if not funded, set after funding
 }
 
 contract Escrow with Deployable {
@@ -171,6 +174,11 @@ contract Escrow with Deployable {
         } else {
             self.sendJettons(self.buyerAddress!!, self.dealAmount, SendRemainingBalance | SendDestroyIfZero);
         }
+    }
+
+    // on-chain data access, could be usefull to guarantor contract
+    receive("provideEscrowData"){
+        self.reply(TakeEscrowData{escrowData: self.escrowInfo()}.toCell());
     }
 
     get fun calculateRoyaltyAmount(): Int {
