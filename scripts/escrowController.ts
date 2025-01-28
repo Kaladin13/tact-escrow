@@ -32,6 +32,16 @@ const getWalletAddress = async (provider: NetworkProvider, ui: UIProvider) => {
     ui.write(`Escrow contract jetton wallet address is ${jAddress.toString({ urlSafe: true })}`);
 };
 
+const provideOnChainData = async (provider: NetworkProvider, ui: UIProvider) => {
+    await escrowContract.send(
+        provider.sender(),
+        {
+            value: toNano('0.05'),
+        },
+        'provideEscrowData',
+    );
+};
+
 const getRoyalty = async (provider: NetworkProvider, ui: UIProvider) => {
     const roylaty = await escrowContract.getCalculateRoyaltyAmount();
 
