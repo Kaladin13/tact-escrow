@@ -30,6 +30,7 @@ Asset type in the contract is stored as `assetAddress:Maybe address`, where **nu
 - After Guarantor successfully approves/cancels the deal, escrow contract destroys itself
 - Royalties percent uses decimal constant as hack for precise calculations and evading float-math (see `calculateRoyaltyAmount`)
 - Asset type is set on deployment and cannot be changed after (except `jettonWalletCode`, see `UpdateJettonWalletCode#0x1d5a120d` for this)
+- This implementation includes "on-chain get method" as a Get-Provide pattern, see TakeEscrowData#0x2c394a7e
 - This implementation allows Buyer, Guarantor and Seller all to be the same accounts, logic still would hold
 - Deal amount and other escrow parameters cannot be changed after deployment by anyone including Seller (if you want to change any deal inputs except `jettonWalletCode`, create and deploy new escrow instance)
 
