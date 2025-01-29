@@ -17,6 +17,22 @@ Tact Escrow contract on TON blockchain that can accept payments in TON/Jettons, 
 
 ## Implementation details
 
+### Jettons
+
+While Escrow Contract itself doesn't require any external dependencies, for testing purposes I included [FunC TEP-74 Jetton Implementation](https://github.com/ton-blockchain/token-contract/tree/main/ft) in this repo (`ft` folder in contracts and wrappers). They are used in tests involving Jettons and CLI script. Since all Jettons' on-chain messages and interactions are standardized in TEP, the implementation itself doesn't affect general logic. I decided to use this FunC implementation since it's well-tested, it could be easily replaced by any other FunC or Tact impl (e.g. [this](https://github.com/Laisky/tact-utils/blob/main/contracts/jetton/jetton.tact))
+
+### Asset type
+
+Asset type in the contract is stored as `assetAddress:Maybe address`, where **null** value represents TON, and **any correct address** represents TEP-74 Jetton with the following Minter Address. Since we need to verify Escrow Jetton Wallet Address on `TransferNotification` to validate the funding, any Jetton whose `StateInit` is different from TEP-74 won't work, because addresses would differ (e.g. [TEP-177 Mintless](https://github.com/ton-blockchain/TEPs/pull/177))
+
+### Subtleties
+
+- After Guarantor successfully approves/cancels the deal, escrow contract destroys itself
+- Royalties percent uses decimal constant as hack for precise calculations and evading float-math (see `calculateRoyaltyAmount`)
+- Asset type is set on deployment and cannot be changed after (except `jettonWalletCode`, see `UpdateJettonWalletCode#0x1d5a120d` for this)
+- This implementation allows Buyer, Guarantor and Seller all to be the same accounts, logic still would hold
+- Deal amount and other escrow parameters cannot be changed after deployment by anyone including Seller (if you want to change any deal inputs except `jettonWalletCode`, create and deploy new escrow instance)
+
 ## Flows
 
 ### Fund with TON
